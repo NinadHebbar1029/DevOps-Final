@@ -101,6 +101,23 @@ export function getMenuItems(): MenuItem[] {
 
 export async function initDatabase() {
   try {
+    // Ensure the database itself exists. Connect without specifying a database and create it if missing.
+    try {
+      const adminPool = mysql.createPool({
+        host: config.database.host,
+        port: config.database.port,
+        user: config.database.user,
+        password: config.database.password,
+        connectionLimit: 1
+      });
+
+      await adminPool.query(`CREATE DATABASE IF NOT EXISTS \`${config.database.database}\``);
+      await adminPool.end();
+    } catch (dbCreateError) {
+      // ignore errors here; the following table creation will surface connection issues
+      console.warn('Could not ensure database exists:', dbCreateError instanceof Error ? dbCreateError.message : dbCreateError);
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS bills (
         id INT AUTO_INCREMENT PRIMARY KEY,
