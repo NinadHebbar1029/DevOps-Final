@@ -3,10 +3,10 @@ FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 
 # install build deps and compile
-COPY backend/package.json backend/package-lock.json* ./
+COPY package.json package-lock.json* ./
 RUN npm install
-COPY backend/tsconfig.json ./
-COPY backend/src ./src
+COPY tsconfig.json ./
+COPY src ./src
 RUN npm run build
 
 FROM node:20-alpine AS runner
@@ -18,7 +18,7 @@ WORKDIR /usr/src/app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # copy only what we need for runtime and install production deps
-COPY backend/package.json ./
+COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund --silent
 
 # copy built artifacts
