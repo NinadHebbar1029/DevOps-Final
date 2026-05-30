@@ -1,22 +1,37 @@
-FROM node:20-alpine AS build
+FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /usr/src/app
 
-COPY backend/package.json ./package.json
-COPY backend/tsconfig.json ./tsconfig.json
+# install build deps and compile
+COPY backend/package.json backend/package-lock.json* ./
+RUN npm install
+COPY backend/tsconfig.json ./
 COPY backend/src ./src
+RUN npm run build
 
-RUN npm install && npm run build
+FROM node:20-alpine AS runner
+ENV NODE_ENV=production
 
-FROM node:20-alpine
+WORKDIR /usr/src/app
 
-WORKDIR /app
+# create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY backend/package.json ./package.json
-RUN npm install --omit=dev
+# copy only what we need for runtime and install production deps
+COPY backend/package.json ./
+RUN npm install --omit=dev --no-audit --no-fund --silent
 
-COPY --from=build /app/dist ./dist
+# copy built artifacts
+COPY --from=builder /usr/src/app/dist ./dist
+
+# set permissions and switch to non-root
+RUN chown -R appuser:appgroup /usr/src/app
+USER appuser
 
 EXPOSE 4000
+ENV PORT=4000
+
+# lightweight healthcheck for orchestration
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -qO- http://127.0.0.1:${PORT}/api/health || exit 1
 
 CMD ["node", "dist/index.js"]

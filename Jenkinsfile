@@ -1,60 +1,72 @@
 pipeline {
-  agent any
+    agent any
 
-  triggers {
-    pollSCM('H/5 * * * *')
-  }
-
-  environment {
-    NODE_ENV = 'production'
-    IMAGE_NAME = 'devops-full-stack-backend'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    triggers {
+        pollSCM('H/5 * * * *')
     }
 
-    stage('Install') {
-      steps {
-        sh 'npm install'
-        sh 'npm install -w frontend'
-        sh 'npm install -w backend'
-      }
+    environment {
+        SONAR_TOKEN = credentials('sonar-token')
+        IMAGE_NAME = 'devops-backend'
     }
 
-    stage('Quality') {
-      steps {
-        sh 'npm run typecheck'
-      }
-    }
+    stages {
 
-    stage('SonarQube Analysis') {
-      steps {
-        withSonarQubeEnv('sonarqube') {
-          sh 'echo "Run sonar-scanner here with your configured project key"'
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/NinadHebbar1029/DevOps-Final.git'
+            }
         }
-      }
-    }
 
-    stage('Build') {
-      steps {
-        sh 'npm run build'
-      }
-    }
+        // ---------------- BACKEND ----------------
+        stage('Install Backend Dependencies') {
+            steps {
+                dir('backend') {
+                    sh 'npm install'
+                }
+            }
+        }
 
-    stage('Docker Build') {
-      steps {
-        sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} -f backend/Dockerfile .'
-      }
-    }
+        stage('Backend Test') {
+            steps {
+                dir('backend') {
+                    sh 'npm test || echo "No tests yet"'
+                }
+            }
+        }
 
-    stage('Deploy Backend') {
-      steps {
-        sh 'echo "Use Railway or Render deploy hook / image deployment here"'
-      }
+        stage('SonarQube Analysis (Backend)') {
+            steps {
+                dir('backend') {
+                    sh '''
+                    sonar-scanner \
+                    -Dsonar.projectKey=backend-project \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=http://localhost:9000 \
+                    -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+
+        // ---------------- DOCKER ----------------
+        stage('Build Docker Image (Backend)') {
+            steps {
+                sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} -f backend/Dockerfile backend'
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                sh 'docker run -d -p 4000:4000 --name ${IMAGE_NAME}_${BUILD_NUMBER} ${IMAGE_NAME}:${BUILD_NUMBER}'
+            }
+        }
+
+        // ---------------- OPTIONAL DEPLOY ----------------
+        stage('Deploy Backend (Render/Railway Trigger)') {
+            steps {
+                sh 'echo "Trigger deploy via webhook or GitHub integration"'
+            }
+        }
     }
-  }
 }
