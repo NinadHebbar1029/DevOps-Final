@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: devops-backend
+    env: docker
+    branch: main
+    dockerfilePath: backend/Dockerfile
+    autoDeploy: true
+    healthCheckPath: /api/health
+    plan: free
